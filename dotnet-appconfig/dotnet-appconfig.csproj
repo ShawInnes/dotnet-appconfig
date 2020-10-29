@@ -9,6 +9,15 @@
 
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <Description>A .NET Core Global Tool to help manage Azure App Configuration and KeyVault values</Description>
+        <RepositoryUrl>https://github.com/restsharp/RestSharp.git</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+    
+    <PropertyGroup>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Description>A .NET Core Global Tool to help manage Azure App Configuration and KeyVault values</Description>
+        <RepositoryUrl>https://github.com/ShawInnes/dotnet-appconfig.git</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 
     <ItemGroup>
