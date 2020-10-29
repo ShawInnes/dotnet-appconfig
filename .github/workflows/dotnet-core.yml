@@ -26,5 +26,5 @@ jobs:
     - name: Pack
       run: dotnet pack --no-restore --verbosity normal --output ./nupkg
     - name: Push
-      run: dotnet nuget push ./nupkg/*.nupkg --skip-duplicate --no-symbols true
+      run: dotnet nuget push ./nupkg/*.nupkg --skip-duplicate --no-symbols true --api-key ${{secrets.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json
 
