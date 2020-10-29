@@ -1,0 +1,7 @@
+mode: ContinuousDelivery
+branches:
+  master:
+    regex: (^master$|^origin\/master$|^main$|^origin\/main$)
+ignore:
+  sha: []
+merge-message-formats: {}

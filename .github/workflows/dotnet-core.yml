@@ -16,8 +16,8 @@ jobs:
       - name: Fetch tags for GitVersion
         run: git fetch --tags
       - name: Fetch main for GitVersion
-        if: github.ref != 'refs/heads/master'
-        run: git branch --create-reflog master origin/main
+        if: github.ref != 'refs/heads/main'
+        run: git branch --create-reflog main origin/main
       - name: GitVersion
         id: gitversion # step id used as reference for output values
         uses: roryprimrose/rungitversion@v1.0.0
@@ -28,10 +28,10 @@ jobs:
       - name: Install dependencies
         run: dotnet restore
       - name: Build
-        run: dotnet build --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.NuGetVersionV2 }}
+        run: dotnet build --configuration Release --no-restore /p:Version=${{ steps.gitversion.outputs.NuGetVersion }}
       - name: Test
         run: dotnet test --no-restore --verbosity normal
       - name: Pack
-        run: dotnet pack --no-restore --verbosity normal --output ./nupkg /p:Version=${{ steps.gitversion.outputs.NuGetVersionV2 }}
+        run: dotnet pack --no-restore --verbosity normal --output ./nupkg /p:Version=${{ steps.gitversion.outputs.NuGetVersion }}
       - name: Push
         run: dotnet nuget push ./nupkg/*.nupkg --skip-duplicate --no-symbols true --api-key ${{secrets.NUGET_API_KEY}} --source https://api.nuget.org/v3/index.json
