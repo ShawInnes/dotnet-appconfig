@@ -16,8 +16,8 @@ jobs:
       - name: Fetch tags for GitVersion
         run: git fetch --tags
       - name: Fetch main for GitVersion
-        if: github.ref != 'refs/heads/main'
-        run: git branch --create-reflog main origin/main
+        if: github.ref != 'refs/heads/master'
+        run: git branch --create-reflog master origin/main
       - name: GitVersion
         id: gitversion # step id used as reference for output values
         uses: roryprimrose/rungitversion@v1.0.0
