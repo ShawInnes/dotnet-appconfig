@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using ConfigManager.Services;
 using McMaster.Extensions.CommandLineUtils;
 
@@ -10,46 +12,35 @@ namespace ConfigManager
     [Command(Name = "import", Description = "Import App Settings from JSON to Azure App Configuration")]
     public class AppConfigImportCommand : ImportExportCommandBase
     {
-        private readonly IAppConfigService _appConfigService;
-
         [Option("--import-file=<path>")]
         [Required]
         [FileExists]
         public string ImportFile { get; set; }
 
-        [Option("--keyvault-name=<name>", Description = "Azure KeyVault Name, excluding the https:// prefix and .vault.azure.net")]
-        [Required]
-        public string KeyVaultName { get; set; }
+        [Option("--strict",
+            Description = "Ensure that KeyVault values exist for App Configuration references")]
+        public bool Strict { get; set; }
 
         protected override async Task<int> OnExecuteAsync(CommandLineApplication app)
         {
-            Console.WriteLine("AppConfigImportCommand OnExecuteAsync");
-
             if (!CanExecute())
                 return await Task.FromResult(1);
 
-            _appConfigService.ConsoleOutput = !Quiet;
+            var appConfigService = new AppConfigService(Console,
+                ConfigurationClientHelpers.GetConfigurationClientByConnectionString(AppConfigConnectionString),
+                new SecretClient(new Uri($"https://{KeyVaultName}.vault.azure.net/"),
+                    new DefaultAzureCredential(includeInteractiveCredentials: true)));
 
-            if (!string.IsNullOrEmpty(AppConfigName))
-            {
-                await _appConfigService.ImportAppConfigurationFromFileByName(AppConfigName, KeyVaultName, ImportFile, DryRun);
-            }
-            else if (!string.IsNullOrEmpty(AppConfigConnectionString))
-            {
-                await _appConfigService.ImportAppConfigurationFromFileByConnectionString(AppConfigConnectionString, KeyVaultName, ImportFile, DryRun);
-            }
-            else
-            {
-                throw new InvalidOperationException("No App Config Name or Connection String specified");
-            }
+            appConfigService.ConsoleOutput = !Quiet;
+
+            await appConfigService.ImportAppConfigurationFromFile(AppConfigConnectionString,
+                KeyVaultName, ImportFile, DryRun, Strict);
 
             return await Task.FromResult(0);
         }
 
-        public AppConfigImportCommand(IConsole console, IAppConfigService appConfigService) : base(console)
+        public AppConfigImportCommand(IConsole console) : base(console)
         {
-            _appConfigService = appConfigService;
-            Console.WriteLine("AppConfigImportCommand Constructor");
         }
     }
 }

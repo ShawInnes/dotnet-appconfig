@@ -1,4 +1,5 @@
 using System;
+using Azure.Data.AppConfiguration;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using ConfigManager.Services;
@@ -12,26 +13,13 @@ namespace ConfigManager.Tests
     public class KeyVaultTests
     {
         [Fact]
-        public void KeyVaultTest()
-        {
-            var credential = new DefaultAzureCredential();
-            var secretClient = new Azure.Security.KeyVault.Secrets.SecretClient(new Uri("https://vaultname.azure.net"), credential);
-            var response = secretClient.SetSecret(new KeyVaultSecret("name", "value")
-            {
-                Properties =
-                {
-                    ContentType = "text/secret",
-                    Tags = {{"Source", "Keepass"}}
-                }
-            });
-        }
-
-        [Fact]
         public void FromKeyVaultReferenceTest()
         {
             var consoleMock = Substitute.For<IConsole>();
-            var appConfigService = new AppConfigService(consoleMock);
-
+            var configurationClientMock = Substitute.For<ConfigurationClient>();
+            var secretClientMock = Substitute.For<SecretClient>();
+            var appConfigService = new AppConfigService(consoleMock, configurationClientMock, secretClientMock);
+            
             var value = "{\"uri\": \"https://vaultname.vault.azure.net/secrets/frontdoor-id\"}";
             var secretName = appConfigService.FromKeyVaultReference(value);
 
@@ -42,7 +30,9 @@ namespace ConfigManager.Tests
         public void ToKeyVaultReferenceTest()
         {
             var consoleMock = Substitute.For<IConsole>();
-            var appConfigService = new AppConfigService(consoleMock);
+            var configurationClientMock = Substitute.For<ConfigurationClient>();
+            var secretClientMock = Substitute.For<SecretClient>();
+            var appConfigService = new AppConfigService(consoleMock, configurationClientMock, secretClientMock);
 
             var keyVaultName = "vaultname";
             var value = "frontdoor-id";

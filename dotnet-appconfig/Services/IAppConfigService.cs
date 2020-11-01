@@ -4,10 +4,8 @@ namespace ConfigManager.Services
 {
     public interface IAppConfigService
     {
-        Task ExportAppConfigurationToFileByConnectionString(string connectionString, string outputPath);
-        Task ImportAppConfigurationFromFileByConnectionString(string connectionString, string keyVaultName, string inputPath, bool dryRun);
-        Task ExportAppConfigurationToFileByName(string appConfigName, string outputPath);
-        Task ImportAppConfigurationFromFileByName(string appConfigName, string keyVaultName, string inputPath, bool dryRun);
+        Task ExportAppConfigurationToFile(string connectionString, string outputPath);
+        Task ImportAppConfigurationFromFile(string connectionString, string keyVaultName, string inputPath, bool dryRun, bool strict);
         bool ConsoleOutput { get; set; }
     }
 }

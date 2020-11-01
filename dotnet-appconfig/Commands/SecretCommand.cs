@@ -17,12 +17,4 @@ namespace ConfigManager
             return Task.FromResult(1);
         }
     }
-
-    [Command(Name = "import", Description = "Import Secrets from a Keepass file to Azure KeyVault")]
-    public class SecretImportCommand : AppConfigCommandBase
-    {
-        public SecretImportCommand(IConsole console) : base(console)
-        {
-        }
-    }
 }

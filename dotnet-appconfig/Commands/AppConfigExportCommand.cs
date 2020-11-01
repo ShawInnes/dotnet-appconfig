@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Threading.Tasks;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using ConfigManager.Services;
 using McMaster.Extensions.CommandLineUtils;
 
@@ -11,8 +13,6 @@ namespace ConfigManager
     [Command(Name = "export", Description = "Export App Settings from Azure App Configuration to JSON")]
     public class AppConfigExportCommand : ImportExportCommandBase
     {
-        private readonly IAppConfigService _appConfigService;
-
         [Option("--export-file=<path>", Description = "Path to export file in JSON format")]
         [Required]
         public string ExportFile { get; set; }
@@ -24,21 +24,16 @@ namespace ConfigManager
         {
             if (!CanExecute())
                 return await Task.FromResult(1);
+            
+            var appConfigService = new AppConfigService(Console,
+                ConfigurationClientHelpers.GetConfigurationClientByConnectionString(AppConfigConnectionString),
+                new SecretClient(new Uri($"https://{KeyVaultName}.vault.azure.net/"),
+                    new DefaultAzureCredential(includeInteractiveCredentials: true)));
+            
+            appConfigService.ConsoleOutput = !Quiet;
 
-            _appConfigService.ConsoleOutput = !Quiet;
-
-            if (!string.IsNullOrEmpty(AppConfigName))
-            {
-                await _appConfigService.ExportAppConfigurationToFileByName(AppConfigName, ExportFile);
-            }
-            else if (!string.IsNullOrEmpty(AppConfigConnectionString))
-            {
-                await _appConfigService.ExportAppConfigurationToFileByConnectionString(AppConfigConnectionString, ExportFile);
-            }
-            else
-            {
-                throw new InvalidOperationException("No App Config Name or Connection String specified");
-            }
+            await appConfigService.ExportAppConfigurationToFile(AppConfigConnectionString,
+                ExportFile);
 
             return await Task.FromResult(0);
         }
@@ -60,10 +55,8 @@ namespace ConfigManager
             return true;
         }
 
-        public AppConfigExportCommand(IConsole console, IAppConfigService appConfigService) : base(console)
+        public AppConfigExportCommand(IConsole console) : base(console)
         {
-            _appConfigService = appConfigService;
-            _appConfigService.ConsoleOutput = !Quiet;
         }
     }
 }

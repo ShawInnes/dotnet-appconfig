@@ -10,11 +10,13 @@ namespace ConfigManager
     {
         [Option("-c|--connection-string=<connection_string>",
             Description = "Azure App Configuration connection string")]
+        [Required]
         public string AppConfigConnectionString { get; set; }
-
-        [Option("-n|--app-config-name=<app_config_name>",
-            Description = "Azure App Configuration name")]
-        public string AppConfigName { get; set; }
+        
+        [Option("--keyvault-name=<name>",
+            Description = "Azure KeyVault Name, excluding the https:// prefix and .vault.azure.net")]
+        [Required]
+        public string KeyVaultName { get; set; }
 
         [Option("--dry-run")]
         public bool DryRun { get; set; }
@@ -25,9 +27,7 @@ namespace ConfigManager
 
         protected override bool CanExecute()
         {
-            Console.WriteLine("ImportExportCommandBase CanExecute");
-
-            if (string.IsNullOrEmpty(AppConfigConnectionString) && string.IsNullOrEmpty(AppConfigName))
+            if (string.IsNullOrEmpty(AppConfigConnectionString))
             {
                 if (!Quiet)
                 {

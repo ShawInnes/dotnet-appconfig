@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using Azure.Data.AppConfiguration;
+using Azure.Security.KeyVault.Secrets;
 using ConfigManager.Services;
 using FluentAssertions;
 using McMaster.Extensions.CommandLineUtils;
@@ -12,10 +14,13 @@ namespace ConfigManager.Tests
         [Fact]
         public void FromConnectionString()
         {
-            var connectionString = "Endpoint=https://app-config.azconfig.io;Id=xyz4-rg-s9:rgBiKka0wKZuEta/0Eta;Secret=fdahytbtF+fjdhfksdhfsdfc=";
+            var connectionString =
+                "Endpoint=https://app-config.azconfig.io;Id=xyz4-rg-s9:rgBiKka0wKZuEta/0Eta;Secret=fdahytbtF+fjdhfksdhfsdfc=";
 
             var consoleMock = Substitute.For<IConsole>();
-            var appConfigService = new AppConfigService(consoleMock);
+            var configurationClientMock = Substitute.For<ConfigurationClient>();
+            var secretClientMock = Substitute.For<SecretClient>();
+            var appConfigService = new AppConfigService(consoleMock, configurationClientMock, secretClientMock);
 
             var (endpoint, name, id, secret) = appConfigService.SplitAppConfigConnectionString(connectionString);
 
@@ -38,7 +43,9 @@ namespace ConfigManager.Tests
         public void ValidJson(string json, bool expected)
         {
             var consoleMock = Substitute.For<IConsole>();
-            var appConfigService = new AppConfigService(consoleMock);
+            var configurationClientMock = Substitute.For<ConfigurationClient>();
+            var secretClientMock = Substitute.For<SecretClient>();
+            var appConfigService = new AppConfigService(consoleMock, configurationClientMock, secretClientMock);
 
             appConfigService.IsValidJson(json).Should().Be(expected);
         }
