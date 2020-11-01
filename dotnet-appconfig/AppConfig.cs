@@ -10,7 +10,7 @@ namespace ConfigManager
 {
     [Command("appconfig")]
     [VersionOptionFromMember("--version", MemberName = nameof(GetVersion))]
-    [Subcommand(typeof(ImportCommand), typeof(ExportCommand))]
+    [Subcommand(typeof(AppConfigImportCommand), typeof(AppConfigExportCommand), typeof(SecretCommand))]
     class AppConfig : AppConfigCommandBase
     {
         public static Task<int> Main(string[] args)

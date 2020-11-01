@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Azure.Data.AppConfiguration;
+using Azure.Identity;
 using ConfigManager.Models;
 using McMaster.Extensions.CommandLineUtils;
 using Newtonsoft.Json;
@@ -81,13 +82,11 @@ namespace ConfigManager.Services
             _console = console;
         }
 
-        public async Task ExportAppConfigurationToFile(string connectionString, string outputPath)
+        public async Task ExportAppConfigurationToFileByName(string appConfigName, string outputPath)
         {
-            var (_, name, _, _) = SplitAppConfigConnectionString(connectionString);
+            if (ConsoleOutput) _console.WriteLine($"Exporting AppSettings and KeyVault References from '{appConfigName}' to {outputPath}");
 
-            if (ConsoleOutput) _console.WriteLine($"Exporting AppSettings and KeyVault References from '{name}' to {outputPath}");
-
-            var json = await ExtractAppConfiguration(connectionString);
+            var json = await ExportAppConfigurationByName(appConfigName);
 
             await File.WriteAllTextAsync(outputPath, json);
 
@@ -95,12 +94,21 @@ namespace ConfigManager.Services
             if (ConsoleOutput) _console.WriteLine($"Done.");
         }
 
-        public async Task ImportAppConfigurationFromFile(string connectionString, string keyVaultName, string inputPath, bool dryRun)
+        public async Task ExportAppConfigurationToFileByConnectionString(string connectionString, string outputPath)
         {
             var (_, name, _, _) = SplitAppConfigConnectionString(connectionString);
+            if (ConsoleOutput) _console.WriteLine($"Exporting AppSettings and KeyVault References from '{name}' to {outputPath}");
 
-            if (ConsoleOutput) _console.WriteLine($"Importing AppSettings and KeyVault References from '{inputPath}' to '{name}' and '{keyVaultName}'");
+            var json = await ExportAppConfigurationByConnectionString(connectionString);
 
+            await File.WriteAllTextAsync(outputPath, json);
+
+            if (ConsoleOutput) _console.ResetColor();
+            if (ConsoleOutput) _console.WriteLine($"Done.");
+        }
+
+        public async Task ImportAppConfigurationFromFileByName(string appConfigName, string keyVaultName, string inputPath, bool dryRun)
+        {
             var json = await File.ReadAllTextAsync(inputPath);
             if (!IsValidJson(json))
             {
@@ -109,104 +117,181 @@ namespace ConfigManager.Services
             }
             else
             {
+                if (ConsoleOutput) _console.WriteLine($"Importing AppSettings and KeyVault References from '{inputPath}' to '{appConfigName}' and '{keyVaultName}'");
+
                 var configItems = JsonConvert.DeserializeObject<List<AppConfigItem>>(json);
                 if (ConsoleOutput) _console.WriteLine($"Importing {configItems.Count} Item(s) into Azure App Config");
-                await UpdateAppConfiguration(keyVaultName, connectionString, configItems, dryRun);
+                await ImportAppConfigurationByName(appConfigName, keyVaultName, configItems, dryRun);
             }
 
             if (ConsoleOutput) _console.ResetColor();
             if (ConsoleOutput) _console.WriteLine($"Done.");
         }
 
+        public async Task ImportAppConfigurationFromFileByConnectionString(string connectionString, string keyVaultName, string inputPath, bool dryRun)
+        {
+            var json = await File.ReadAllTextAsync(inputPath);
+            if (!IsValidJson(json))
+            {
+                _console.ForegroundColor = ConsoleColor.Red;
+                _console.WriteLine($"File '{inputPath}' does not appear to be valid Json");
+            }
+            else
+            {
+                var (_, name, _, _) = SplitAppConfigConnectionString(connectionString);
 
-        public Task UpdateAppConfiguration(string keyVaultName, string appConfigConnectionString, List<AppConfigItem> configItems, bool dryRun)
+                if (ConsoleOutput) _console.WriteLine($"Importing AppSettings and KeyVault References from '{inputPath}' to '{name}' and '{keyVaultName}'");
+
+                var configItems = JsonConvert.DeserializeObject<List<AppConfigItem>>(json);
+                if (ConsoleOutput) _console.WriteLine($"Importing {configItems.Count} Item(s) into Azure App Config");
+                await ImportAppConfigurationByConnectionString(keyVaultName, connectionString, configItems, dryRun);
+            }
+
+            if (ConsoleOutput) _console.ResetColor();
+            if (ConsoleOutput) _console.WriteLine($"Done.");
+        }
+
+        public Task ImportAppConfigurationByName(string appConfigName, string keyVaultName, List<AppConfigItem> configItems, bool dryRun)
+        {
+            var configurationClient = GetConfigurationClientByName(appConfigName);
+            return ImportAppConfiguration(configurationClient, keyVaultName, configItems, dryRun);
+        }
+
+        public Task ImportAppConfigurationByConnectionString(string keyVaultName, string appConfigConnectionString, List<AppConfigItem> configItems, bool dryRun)
+        {
+            var configurationClient = GetConfigurationClientByConnectionString(appConfigConnectionString);
+            return ImportAppConfiguration(configurationClient, keyVaultName, configItems, dryRun);
+        }
+
+        private static ConfigurationClient GetConfigurationClientByConnectionString(string appConfigConnectionString)
         {
             var configurationClient = new ConfigurationClient(appConfigConnectionString);
-            var configurationSettings = configurationClient.GetConfigurationSettings(new SettingSelector()).ToList();
-            var dryRunPrefix = dryRun ? "[dry-run] " : "";
+            return configurationClient;
+        }
 
-            foreach (var appConfigItem in configItems)
+        private static ConfigurationClient GetConfigurationClientByName(string appConfigName)
+        {
+            var configurationClient = new ConfigurationClient(new Uri($"https://{appConfigName}.azconfig.io"), new DefaultAzureCredential());
+            return configurationClient;
+        }
+
+        private Task ImportAppConfiguration(ConfigurationClient configurationClient, string keyVaultName, List<AppConfigItem> configItems, bool dryRun)
+        {
+            try
             {
-                if (appConfigItem.Purge)
+                var configurationSettings = configurationClient.GetConfigurationSettings(new SettingSelector()).ToList();
+                var dryRunPrefix = dryRun ? "[dry-run] " : "";
+
+                foreach (var appConfigItem in configItems)
                 {
-                    if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.Red;
-                    if (ConsoleOutput) _console.WriteLine($"{dryRunPrefix}Purging AppConfiguration Item '{appConfigItem.Key}'");
-
-                    if (!dryRun) configurationClient.DeleteConfigurationSetting(appConfigItem.Key);
-                }
-                else
-                {
-                    var configurationSetting = configurationSettings.FirstOrDefault(p => p.Key == appConfigItem.Key);
-
-                    if (configurationSetting == null)
+                    if (appConfigItem.Purge)
                     {
-                        if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.DarkGreen;
-                        if (ConsoleOutput) _console.WriteLine($"{dryRunPrefix}Adding new AppConfiguration Item '{appConfigItem.Key}'");
+                        if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.Red;
+                        if (ConsoleOutput) _console.WriteLine($"{dryRunPrefix}Purging AppConfiguration Item '{appConfigItem.Key}'");
 
-                        configurationSetting = new ConfigurationSetting(appConfigItem.Key, appConfigItem.KeyVault ? ToKeyVaultReference(keyVaultName, appConfigItem.Value) : appConfigItem.Value);
-                        configurationSetting.ContentType = appConfigItem.KeyVault ? KeyVaultReferenceContentType : null;
-
-                        if (!dryRun) configurationClient.AddConfigurationSetting(configurationSetting);
-                    }
-                    else if ((!appConfigItem.KeyVault && appConfigItem.Value != configurationSetting.Value) || appConfigItem.KeyVault && ToKeyVaultReference(keyVaultName, appConfigItem.Value) != configurationSetting.Value)
-                    {
-                        if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.DarkYellow;
-                        if (ConsoleOutput) _console.WriteLine($"{dryRunPrefix}Updating Value of AppConfiguration Item '{appConfigItem.Key}'");
-
-                        configurationSetting.Key = appConfigItem.Key;
-                        configurationSetting.Value = appConfigItem.KeyVault ? ToKeyVaultReference(keyVaultName, appConfigItem.Value) : appConfigItem.Value;
-                        configurationSetting.ContentType = appConfigItem.KeyVault ? KeyVaultReferenceContentType : null;
-
-                        if (!dryRun) configurationClient.SetConfigurationSetting(configurationSetting);
+                        if (!dryRun) configurationClient.DeleteConfigurationSetting(appConfigItem.Key);
                     }
                     else
                     {
-                        if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.DarkGray;
-                        if (ConsoleOutput) _console.WriteLine($"{dryRunPrefix}Not Updating AppConfiguration Item '{appConfigItem.Key}'");
+                        var configurationSetting = configurationSettings.FirstOrDefault(p => p.Key == appConfigItem.Key);
+
+                        if (configurationSetting == null)
+                        {
+                            if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.DarkGreen;
+                            if (ConsoleOutput) _console.WriteLine($"{dryRunPrefix}Adding new AppConfiguration {(appConfigItem.KeyVault ? "KeyVault Reference" : "Item")} '{appConfigItem.Key}'");
+
+                            configurationSetting = new ConfigurationSetting(appConfigItem.Key, appConfigItem.KeyVault ? ToKeyVaultReference(keyVaultName, appConfigItem.Value) : appConfigItem.Value);
+                            configurationSetting.ContentType = appConfigItem.KeyVault ? KeyVaultReferenceContentType : null;
+
+                            if (!dryRun) configurationClient.AddConfigurationSetting(configurationSetting);
+                        }
+                        else if ((!appConfigItem.KeyVault && appConfigItem.Value != configurationSetting.Value) || appConfigItem.KeyVault && ToKeyVaultReference(keyVaultName, appConfigItem.Value) != configurationSetting.Value)
+                        {
+                            if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.DarkYellow;
+                            if (ConsoleOutput) _console.WriteLine($"{dryRunPrefix}Updating Value of AppConfiguration Item '{appConfigItem.Key}'");
+
+                            configurationSetting.Key = appConfigItem.Key;
+                            configurationSetting.Value = appConfigItem.KeyVault ? ToKeyVaultReference(keyVaultName, appConfigItem.Value) : appConfigItem.Value;
+                            configurationSetting.ContentType = appConfigItem.KeyVault ? KeyVaultReferenceContentType : null;
+
+                            if (!dryRun) configurationClient.SetConfigurationSetting(configurationSetting);
+                        }
+                        else
+                        {
+                            if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.DarkGray;
+                            if (ConsoleOutput) _console.WriteLine($"{dryRunPrefix}Not Updating AppConfiguration Item '{appConfigItem.Key}'");
+                        }
                     }
                 }
-            }
 
-            return Task.CompletedTask;
+                return Task.CompletedTask;
+            }
+            catch (AuthenticationFailedException ex)
+            {
+                _console.ForegroundColor = ConsoleColor.DarkRed;
+                _console.WriteLine($"Error Authenticating to App Config or KeyVault: \n {ex.Message}");
+                throw;
+            }
         }
 
-        public async Task<string> ExtractAppConfiguration(string appConfigConnectionString)
+        public async Task<string> ExportAppConfigurationByName(string appConfigName)
         {
-            var configurationClient = new ConfigurationClient(appConfigConnectionString);
+            var configurationClient = GetConfigurationClientByName(appConfigName);
 
+            return await ExportAppConfiguration(configurationClient);
+        }
+
+        public async Task<string> ExportAppConfigurationByConnectionString(string appConfigConnectionString)
+        {
+            var configurationClient = GetConfigurationClientByConnectionString(appConfigConnectionString);
+
+            return await ExportAppConfiguration(configurationClient);
+        }
+
+        private async Task<string> ExportAppConfiguration(ConfigurationClient configurationClient)
+        {
             List<AppConfigItem> configItems = new List<AppConfigItem>();
 
-            var configurationSettings = configurationClient.GetConfigurationSettings(new SettingSelector());
-            foreach (var configurationSetting in configurationSettings)
+            try
             {
-                var appConfigItem = new AppConfigItem
+                var configurationSettings = configurationClient.GetConfigurationSettings(new SettingSelector());
+                foreach (var configurationSetting in configurationSettings)
                 {
-                    Key = configurationSetting.Key,
-                    Label = configurationSetting.Label,
-                    Value = configurationSetting.Value,
-                };
+                    var appConfigItem = new AppConfigItem
+                    {
+                        Key = configurationSetting.Key,
+                        Label = configurationSetting.Label,
+                        Value = configurationSetting.Value,
+                    };
 
-                if (IsKeyVaultSetting(configurationSetting))
-                {
-                    appConfigItem.Value = FromKeyVaultReference(configurationSetting.Value);
-                    appConfigItem.KeyVault = true;
+                    if (IsKeyVaultSetting(configurationSetting))
+                    {
+                        appConfigItem.Value = FromKeyVaultReference(configurationSetting.Value);
+                        appConfigItem.KeyVault = true;
 
-                    if (ConsoleOutput) _console.WriteLine($"Exporting AppConfiguration KeyVault Reference '{appConfigItem.Key}'");
+                        if (ConsoleOutput) _console.WriteLine($"Exporting AppConfiguration KeyVault Reference '{appConfigItem.Key}'");
+                    }
+                    else
+                    {
+                        if (ConsoleOutput) _console.WriteLine($"Exporting AppConfiguration Item '{appConfigItem.Key}'");
+                    }
+
+                    configItems.Add(appConfigItem);
                 }
-                else
-                {
-                    if (ConsoleOutput) _console.WriteLine($"Exporting AppConfiguration Item '{appConfigItem.Key}'");
-                }
 
-                configItems.Add(appConfigItem);
+                return await Task.FromResult(JsonConvert.SerializeObject(configItems.OrderBy(p => p.Key), new JsonSerializerSettings
+                {
+                    Formatting = Formatting.Indented,
+                    NullValueHandling = NullValueHandling.Ignore,
+                    DefaultValueHandling = DefaultValueHandling.Ignore
+                }));
             }
-
-            return await Task.FromResult(JsonConvert.SerializeObject(configItems.OrderBy(p => p.Key), new JsonSerializerSettings
+            catch (AuthenticationFailedException ex)
             {
-                Formatting = Formatting.Indented,
-                NullValueHandling = NullValueHandling.Ignore,
-                DefaultValueHandling = DefaultValueHandling.Ignore
-            }));
+                _console.ForegroundColor = ConsoleColor.DarkRed;
+                _console.WriteLine($"Error Authenticating to App Config or KeyVault: \n {ex.Message}");
+                throw;
+            }
         }
     }
 }

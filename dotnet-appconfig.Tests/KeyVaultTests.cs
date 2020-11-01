@@ -1,3 +1,6 @@
+using System;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using ConfigManager.Services;
 using FluentAssertions;
 using McMaster.Extensions.CommandLineUtils;
@@ -8,6 +11,20 @@ namespace ConfigManager.Tests
 {
     public class KeyVaultTests
     {
+        [Fact]
+        public void KeyVaultTest()
+        {
+            var credential = new DefaultAzureCredential();
+            var secretClient = new Azure.Security.KeyVault.Secrets.SecretClient(new Uri("https://vaultname.azure.net"), credential);
+            var response = secretClient.SetSecret(new KeyVaultSecret("name", "value")
+            {
+                Properties =
+                {
+                    ContentType = "text/secret",
+                    Tags = {{"Source", "Keepass"}}
+                }
+            });
+        }
 
         [Fact]
         public void FromKeyVaultReferenceTest()
@@ -30,7 +47,7 @@ namespace ConfigManager.Tests
             var keyVaultName = "vaultname";
             var value = "frontdoor-id";
 
-            var keyVaultReference = appConfigService.ToKeyVaultReference(keyVaultName,value);
+            var keyVaultReference = appConfigService.ToKeyVaultReference(keyVaultName, value);
 
             keyVaultReference.Should().Be($"{{\"uri\": \"https://vaultname.vault.azure.net/secrets/frontdoor-id\"}}");
         }
