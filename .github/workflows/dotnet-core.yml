@@ -42,5 +42,6 @@ jobs:
         if: github.ref == 'refs/heads/main'
         uses: tvdias/github-tagger@v0.0.2
         with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
           tag: ${{ steps.gitversion.outputs.semVer }}
   
