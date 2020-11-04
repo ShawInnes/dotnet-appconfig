@@ -1,3 +1,7 @@
+using System;
+using Azure.Data.AppConfiguration;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
 using ConfigManager.Services;
 using FluentAssertions;
 using McMaster.Extensions.CommandLineUtils;
@@ -8,13 +12,14 @@ namespace ConfigManager.Tests
 {
     public class KeyVaultTests
     {
-
         [Fact]
         public void FromKeyVaultReferenceTest()
         {
             var consoleMock = Substitute.For<IConsole>();
-            var appConfigService = new AppConfigService(consoleMock);
-
+            var configurationClientMock = Substitute.For<ConfigurationClient>();
+            var secretClientMock = Substitute.For<SecretClient>();
+            var appConfigService = new AppConfigService(consoleMock, configurationClientMock, secretClientMock);
+            
             var value = "{\"uri\": \"https://vaultname.vault.azure.net/secrets/frontdoor-id\"}";
             var secretName = appConfigService.FromKeyVaultReference(value);
 
@@ -25,12 +30,14 @@ namespace ConfigManager.Tests
         public void ToKeyVaultReferenceTest()
         {
             var consoleMock = Substitute.For<IConsole>();
-            var appConfigService = new AppConfigService(consoleMock);
+            var configurationClientMock = Substitute.For<ConfigurationClient>();
+            var secretClientMock = Substitute.For<SecretClient>();
+            var appConfigService = new AppConfigService(consoleMock, configurationClientMock, secretClientMock);
 
             var keyVaultName = "vaultname";
             var value = "frontdoor-id";
 
-            var keyVaultReference = appConfigService.ToKeyVaultReference(keyVaultName,value);
+            var keyVaultReference = appConfigService.ToKeyVaultReference(keyVaultName, value);
 
             keyVaultReference.Should().Be($"{{\"uri\": \"https://vaultname.vault.azure.net/secrets/frontdoor-id\"}}");
         }

@@ -25,4 +25,10 @@
       <ProjectReference Include="..\dotnet-appconfig\dotnet-appconfig.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <None Update="test.kdbx">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+
 </Project>

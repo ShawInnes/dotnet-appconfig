@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Threading.Tasks;
 using ConfigManager.Services;
@@ -10,14 +11,18 @@ namespace ConfigManager
 {
     [Command("appconfig")]
     [VersionOptionFromMember("--version", MemberName = nameof(GetVersion))]
-    [Subcommand(typeof(ImportCommand), typeof(ExportCommand))]
+    [Subcommand(
+        typeof(AppConfigImportCommand),
+        typeof(AppConfigExportCommand),
+        typeof(AppConfigValidateCommand),
+        typeof(SecretCommand)
+    )]
     class AppConfig : AppConfigCommandBase
     {
-        public static Task<int> Main(string[] args)
+        public static async Task<int> Main(string[] args)
         {
             var services = new ServiceCollection()
                 .AddSingleton<IConsole>(PhysicalConsole.Singleton)
-                .AddTransient<IAppConfigService, AppConfigService>()
                 .BuildServiceProvider();
 
             var app = new CommandLineApplication<AppConfig>();
@@ -25,14 +30,25 @@ namespace ConfigManager
                 .UseDefaultConventions()
                 .UseConstructorInjection(services);
 
-            return app.ExecuteAsync(args);
+            try
+            {
+                return await app.ExecuteAsync(args);
+            }
+            catch (Exception e)
+            {
+                System.Console.ForegroundColor = ConsoleColor.DarkRed;
+                System.Console.WriteLine(e.Message);
+                System.Console.ResetColor();
+                return await Task.FromResult(1);
+            }
         }
 
         public AppConfig(IConsole console) : base(console)
         {
         }
 
-        private static string GetVersion() => typeof(AppConfig).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        private static string GetVersion() => typeof(AppConfig).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
         protected override Task<int> OnExecuteAsync(CommandLineApplication app)
         {

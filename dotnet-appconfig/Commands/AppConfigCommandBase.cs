@@ -30,5 +30,10 @@ namespace ConfigManager
         {
             return Task.FromResult(1);
         }
+
+        protected virtual bool CanExecute()
+        {
+            return true;
+        }
     }
 }
