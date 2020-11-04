@@ -40,7 +40,7 @@ namespace ConfigManager.Services
             return secretName;
         }
 
-        public bool IsValidJson(string strInput)
+        public static bool IsValidJson(string strInput)
         {
             if (string.IsNullOrWhiteSpace(strInput))
             {
@@ -105,8 +105,11 @@ namespace ConfigManager.Services
             if (ConsoleOutput) _console.WriteLine($"Done.");
         }
 
-        public async Task ImportAppConfigurationFromFile(string connectionString, string keyVaultName,
-            string inputPath, bool dryRun, bool strict)
+        public async Task ImportAppConfigurationFromFile(string connectionString,
+            string keyVaultName,
+            string inputPath,
+            bool dryRun,
+            bool strict)
         {
             var json = await File.ReadAllTextAsync(inputPath);
             if (!IsValidJson(json))
@@ -122,8 +125,22 @@ namespace ConfigManager.Services
                     _console.WriteLine(
                         $"Importing AppSettings and KeyVault References from '{inputPath}' to '{name}' and '{keyVaultName}'");
 
-                var configItems = JsonConvert.DeserializeObject<List<AppConfigItem>>(json);
+                var (configItems, errors) = ReadAppConfigItems(json);
+
+                if (errors.Any())
+                {
+                    _console.ForegroundColor = ConsoleColor.Red;
+
+                    foreach (var error in errors)
+                        _console.WriteLine(error);
+
+                    _console.ResetColor();
+
+                    throw new InvalidOperationException("JSON Parsing Errors");
+                }
+
                 if (ConsoleOutput) _console.WriteLine($"Importing {configItems.Count} Item(s) into Azure App Config");
+
                 await ImportAppConfiguration(keyVaultName, configItems, dryRun, strict);
             }
 
@@ -131,8 +148,39 @@ namespace ConfigManager.Services
             if (ConsoleOutput) _console.WriteLine($"Done.");
         }
 
+        public static (List<AppConfigItem>, List<string>) ReadAppConfigItems(string json)
+        {
+            List<string> errors = new List<string>();
+
+            var configItems = JsonConvert.DeserializeObject<List<AppConfigItem>>(json, new JsonSerializerSettings
+            {
+                Error = (sender, args) =>
+                {
+                    errors.Add(args.ErrorContext.Error.Message);
+                    args.ErrorContext.Handled = true;
+                }
+            });
+
+            if (configItems != null)
+            {
+                var validator = new AppConfigItemListValidator();
+                var validatorResult = validator.Validate(configItems);
+                if (!validatorResult.IsValid)
+                {
+                    foreach (var error in validatorResult.Errors)
+                    {
+                        errors.Add(error.ErrorMessage);
+                    }
+                }
+            }
+
+            return (configItems, errors);
+        }
+
         private async Task ImportAppConfiguration(string keyVaultName,
-            List<AppConfigItem> configItems, bool dryRun, bool strict)
+            List<AppConfigItem> configItems,
+            bool dryRun,
+            bool strict)
         {
             try
             {

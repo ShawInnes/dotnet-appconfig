@@ -14,6 +14,7 @@ namespace ConfigManager
     [Subcommand(
         typeof(AppConfigImportCommand),
         typeof(AppConfigExportCommand),
+        typeof(AppConfigValidateCommand),
         typeof(SecretCommand)
     )]
     class AppConfig : AppConfigCommandBase
