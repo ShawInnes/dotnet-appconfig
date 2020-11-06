@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using ConfigManager.Services;
 using McMaster.Extensions.CommandLineUtils;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace ConfigManager
@@ -16,6 +17,9 @@ namespace ConfigManager
         [Required]
         [FileExists]
         public string ImportFile { get; set; }
+
+        [Option("-a|--auto-fix")]
+        public bool AutoFix { get; set; }
 
         public AppConfigValidateCommand(IConsole console) : base(console)
         {
@@ -29,7 +33,7 @@ namespace ConfigManager
             Console.WriteLine($"Validating file '{ImportFile}'");
 
             var json = await File.ReadAllTextAsync(ImportFile);
-            var (items, errors) = AppConfigService.ReadAppConfigItems(json);
+            var (appConfigItems, errors) = AppConfigService.ReadAppConfigItems(json);
             if (errors.Any())
             {
                 Console.ForegroundColor = ConsoleColor.DarkRed;
@@ -43,6 +47,21 @@ namespace ConfigManager
 
             Console.ForegroundColor = ConsoleColor.DarkGreen;
             Console.WriteLine($"File '{ImportFile}' is a valid JSON file.");
+
+            if (AutoFix)
+            {
+                Console.WriteLine("Automatically formatting and fixing JSON file.");
+
+                foreach (var appConfigItem in appConfigItems)
+                {
+                    appConfigItem.Key = appConfigItem.Key.Replace(".", ":");
+                    appConfigItem.Key = appConfigItem.Key.Replace("__", ":");
+                }
+
+                File.Copy(ImportFile, Path.ChangeExtension(ImportFile, ".bak"), true);
+
+                await File.WriteAllTextAsync(ImportFile, AppConfigService.ToJson(appConfigItems));
+            }
 
             return await Task.FromResult(0);
         }

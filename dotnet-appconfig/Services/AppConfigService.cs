@@ -321,13 +321,7 @@ namespace ConfigManager.Services
                     configItems.Add(appConfigItem);
                 }
 
-                return await Task.FromResult(JsonConvert.SerializeObject(configItems.OrderBy(p => p.Key),
-                    new JsonSerializerSettings
-                    {
-                        Formatting = Formatting.Indented,
-                        NullValueHandling = NullValueHandling.Ignore,
-                        DefaultValueHandling = DefaultValueHandling.Ignore
-                    }));
+                return await Task.FromResult(ToJson(configItems));
             }
             catch (AuthenticationFailedException ex)
             {
@@ -335,6 +329,17 @@ namespace ConfigManager.Services
                 _console.WriteLine($"Error Authenticating to App Config or KeyVault: \n {ex.Message}");
                 throw;
             }
+        }
+
+        public static string ToJson(List<AppConfigItem> configItems)
+        {
+            return JsonConvert.SerializeObject(configItems.OrderBy(p => p.Key),
+                new JsonSerializerSettings
+                {
+                    Formatting = Formatting.Indented,
+                    NullValueHandling = NullValueHandling.Ignore,
+                    DefaultValueHandling = DefaultValueHandling.Ignore
+                });
         }
     }
 }
