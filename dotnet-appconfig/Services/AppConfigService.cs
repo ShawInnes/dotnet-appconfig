@@ -148,6 +148,50 @@ namespace ConfigManager.Services
             if (ConsoleOutput) _console.WriteLine($"Done.");
         }
 
+        public static string ConfigItemToLabel(AppConfigItem configItem)
+        {
+            if (!string.IsNullOrEmpty(configItem.Environment) && !string.IsNullOrEmpty(configItem.Application))
+                return $"Environment:{configItem.Environment}/Application:{configItem.Application}";
+
+            if (!string.IsNullOrEmpty(configItem.Environment))
+                return $"Environment:{configItem.Environment}";
+
+            if (!string.IsNullOrEmpty(configItem.Application))
+                return $"Application:{configItem.Application}";
+
+            return configItem.Label;
+        }
+
+        public static AppConfigItem LabelToConfigItem(AppConfigItem configItem, string label)
+        {
+            if (label == null || string.IsNullOrEmpty(label))
+                return configItem;
+            
+            var regex = new Regex(
+                "(Environment:(?<environment>[A-Za-z0-9\\-_]*))|(Application:(?<application>[A-Za-z0-9\\-_]*))|(?<label>[A-Za-z0-9\\-_]+)");
+            var matches = regex.Matches(label);
+
+            foreach (Match match in matches)
+            {
+                if (match.Success && match.Groups["environment"].Success)
+                {
+                    configItem.Environment = match.Groups["environment"].Value;
+                }
+
+                if (match.Success && match.Groups["application"].Success)
+                {
+                    configItem.Application = match.Groups["application"].Value;
+                }
+
+                if (match.Success && match.Groups["label"].Success)
+                {
+                    configItem.Label = match.Groups["label"].Value;
+                }
+            }
+
+            return configItem;
+        }
+
         public static (List<AppConfigItem>, List<string>) ReadAppConfigItems(string json)
         {
             List<string> errors = new List<string>();
@@ -201,7 +245,8 @@ namespace ConfigManager.Services
                     else
                     {
                         var configurationSetting =
-                            configurationSettings.FirstOrDefault(p => p.Key == appConfigItem.Key);
+                            configurationSettings.FirstOrDefault(p =>
+                                p.Key == appConfigItem.Key && p.Label == ConfigItemToLabel(appConfigItem));
 
                         if (strict && appConfigItem.KeyVault)
                         {
@@ -235,9 +280,10 @@ namespace ConfigManager.Services
                             configurationSetting = new ConfigurationSetting(appConfigItem.Key,
                                 appConfigItem.KeyVault
                                     ? ToKeyVaultReference(keyVaultName, appConfigItem.Value)
-                                    : appConfigItem.Value);
-                            configurationSetting.ContentType =
-                                appConfigItem.KeyVault ? KeyVaultReferenceContentType : null;
+                                    : appConfigItem.Value, ConfigItemToLabel(appConfigItem))
+                            {
+                                ContentType = appConfigItem.KeyVault ? KeyVaultReferenceContentType : null
+                            };
 
                             if (!dryRun)
                                 await _configurationClient.AddConfigurationSettingAsync(configurationSetting);
@@ -301,9 +347,10 @@ namespace ConfigManager.Services
                     var appConfigItem = new AppConfigItem
                     {
                         Key = configurationSetting.Key,
-                        Label = configurationSetting.Label,
                         Value = configurationSetting.Value,
                     };
+
+                    appConfigItem = LabelToConfigItem(appConfigItem, configurationSetting.Label);
 
                     if (IsKeyVaultSetting(configurationSetting))
                     {

@@ -38,6 +38,7 @@ namespace ConfigManager
             {
                 System.Console.ForegroundColor = ConsoleColor.DarkRed;
                 System.Console.WriteLine(e.Message);
+                System.Console.WriteLine(e.StackTrace);
                 System.Console.ResetColor();
                 return await Task.FromResult(1);
             }

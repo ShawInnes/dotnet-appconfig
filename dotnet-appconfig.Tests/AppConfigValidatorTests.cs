@@ -86,5 +86,56 @@ namespace ConfigManager.Tests
 
             result.IsValid.Should().Be(expected);
         }
+
+        [Theory]
+        [InlineData(null, null, null, true)]
+        [InlineData("Label", null, null, true)]
+        [InlineData(null, "Environment", null, true)]
+        [InlineData(null, null, "Application", true)]
+        [InlineData(null, "Environment", "Application", true)]
+        [InlineData("Label", "Environment", null, false)]
+        [InlineData("Label", null, "Application", false)]
+        [InlineData("Label", "Environment", "Application", false)]
+        public void LabelTests(string label, string environment, string application, bool expected)
+        {
+            var validator = new AppConfigItemValidator();
+
+            var result = validator.Validate(new AppConfigItem
+            {
+                KeyVault = false,
+                Key = "valid-key",
+                Value = "value-value",
+                Label = label,
+                Environment = environment,
+                Application = application
+            });
+
+            result.IsValid.Should().Be(expected);
+        }
+
+        [Theory]
+        [InlineData(null, null, true)]
+        [InlineData("Environment", null, true)]
+        [InlineData(null, "Application", true)]
+        [InlineData("Environment", "Application", true)]
+        [InlineData("Environment_01", null, true)]
+        [InlineData(null, "Application_01", true)]
+        [InlineData("Environment/01", null, false)]
+        [InlineData(null, "Application/01", false)]
+        public void ApplicationEnvironmentTests(string environment, string application, bool expected)
+        {
+            var validator = new AppConfigItemValidator();
+
+            var result = validator.Validate(new AppConfigItem
+            {
+                KeyVault = false,
+                Key = "valid-key",
+                Value = "value-value",
+                Environment = environment,
+                Application = application
+            });
+
+            result.IsValid.Should().Be(expected);
+        }
     }
 }

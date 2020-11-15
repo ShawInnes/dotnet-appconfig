@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Azure.Data.AppConfiguration;
 using Azure.Security.KeyVault.Secrets;
+using ConfigManager.Models;
 using ConfigManager.Services;
 using FluentAssertions;
 using McMaster.Extensions.CommandLineUtils;
@@ -67,6 +68,41 @@ namespace ConfigManager.Tests
             var (_, errors) = AppConfigService.ReadAppConfigItems(json);
 
             errors.Count.Should().Be(1);
+        }
+
+        [Theory]
+        [InlineData(null, null, null, null)]
+        [InlineData("SomeRandomString", "SomeRandomString", null, null)]
+        [InlineData("Application:MyApplication", null, null, "MyApplication")]
+        [InlineData("Environment:Production", null, "Production", null)]
+        [InlineData("Environment:Production/Application:MyApplication", null, "Production", "MyApplication")]
+        public void LabelToConfigItem(string label, string expectedLabel, string expectedEnvironment,
+            string expectedApplication)
+        {
+            var appConfigItem = new AppConfigItem();
+            appConfigItem = AppConfigService.LabelToConfigItem(appConfigItem, label);
+
+            appConfigItem.Label.Should().Be(expectedLabel);
+            appConfigItem.Environment.Should().Be(expectedEnvironment);
+            appConfigItem.Application.Should().Be(expectedApplication);
+        }
+
+        [Theory]
+        [InlineData(null, null, null, null)]
+        [InlineData("SomeRandomString", null, null, "SomeRandomString")]
+        [InlineData(null, null, "MyApplication", "Application:MyApplication")]
+        [InlineData(null, "Production", null, "Environment:Production")]
+        [InlineData(null, "Production", "MyApplication", "Environment:Production/Application:MyApplication")]
+        public void ConfigItemToLabel(string label, string environment, string application, string expectedLabel)
+        {
+            var appConfigItem = new AppConfigItem
+            {
+                Label = label,
+                Environment = environment,
+                Application = application
+            };
+
+            AppConfigService.ConfigItemToLabel(appConfigItem).Should().Be(expectedLabel);
         }
     }
 }
