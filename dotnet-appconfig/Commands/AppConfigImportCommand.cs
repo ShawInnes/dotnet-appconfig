@@ -21,6 +21,10 @@ namespace ConfigManager
             Description = "Ensure that KeyVault values exist for App Configuration references")]
         public bool Strict { get; set; }
 
+        [Option("--separator",
+            Description = "Override the default separator character")]
+        public string Separator { get; set; }
+
         protected override async Task<int> OnExecuteAsync(CommandLineApplication app)
         {
             if (!CanExecute())
@@ -34,7 +38,7 @@ namespace ConfigManager
             appConfigService.ConsoleOutput = !Quiet;
 
             await appConfigService.ImportAppConfigurationFromFile(AppConfigConnectionString,
-                KeyVaultName, ImportFile, DryRun, Strict);
+                KeyVaultName, ImportFile, DryRun, Strict, Separator);
 
             return await Task.FromResult(0);
         }

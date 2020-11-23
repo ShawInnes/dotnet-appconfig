@@ -20,8 +20,11 @@ namespace ConfigManager.Services
         private readonly ConfigurationClient _configurationClient;
         private readonly SecretClient _secretClient;
 
-        private const string KeyVaultReferenceContentType =
-            "application/vnd.microsoft.appconfig.keyvaultref+json;charset=utf-8";
+        private const string SOURCE_KEY = "Source";
+        private const string SOURCE_VALUE = "json";
+        private const string DEFAULT_SEPARATOR = ":";
+
+        private const string KeyVaultReferenceContentType = "application/vnd.microsoft.appconfig.keyvaultref+json;charset=utf-8";
 
         public bool ConsoleOutput { get; set; }
 
@@ -109,7 +112,8 @@ namespace ConfigManager.Services
             string keyVaultName,
             string inputPath,
             bool dryRun,
-            bool strict)
+            bool strict,
+            string separator)
         {
             var json = await File.ReadAllTextAsync(inputPath);
             if (!IsValidJson(json))
@@ -139,9 +143,51 @@ namespace ConfigManager.Services
                     throw new InvalidOperationException("JSON Parsing Errors");
                 }
 
+                if (!string.IsNullOrEmpty(separator))
+                {
+                    foreach (var appConfigItem in configItems)
+                    {
+                        var newKey = appConfigItem.Key.Replace(DEFAULT_SEPARATOR, separator);
+                        if (ConsoleOutput)
+                            _console.WriteLine(
+                                $"Changing Key '{appConfigItem.Key}' to '{newKey}'");
+                        appConfigItem.Key = newKey;
+                    }
+                }
+
                 if (ConsoleOutput) _console.WriteLine($"Importing {configItems.Count} Item(s) into Azure App Config");
 
                 await ImportAppConfiguration(keyVaultName, configItems, dryRun, strict);
+            }
+
+            if (ConsoleOutput) _console.ResetColor();
+            if (ConsoleOutput) _console.WriteLine($"Done.");
+        }
+
+        public async Task CleanUpConfiguration(string connectionString, string keyVaultName, bool dryRun)
+        {
+            var (_, name, _, _) = SplitAppConfigConnectionString(connectionString);
+            var dryRunPrefix = dryRun ? "[dry-run] " : "";
+
+            if (ConsoleOutput)
+            {
+                _console.WriteLine(
+                    $"Removing untagged Configuration Settings from '{name}'");
+                _console.WriteLine(
+                    $"This command is not yet fully implemented.  Reporting only, no cleanup will occur");
+            }
+
+            var configurationSettings = _configurationClient.GetConfigurationSettings(new SettingSelector()).ToList();
+            foreach (var configurationSetting in configurationSettings)
+            {
+                if (!configurationSetting.Tags.ContainsKey(SOURCE_KEY))
+                {
+                    if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.Red;
+                    if (ConsoleOutput)
+                        _console.WriteLine($"{dryRunPrefix}Purging Untagged AppConfiguration Item '{configurationSetting.Key}'");
+
+                    if (!dryRun) await _configurationClient.DeleteConfigurationSettingAsync(configurationSetting.Key);
+                }
             }
 
             if (ConsoleOutput) _console.ResetColor();
@@ -166,7 +212,7 @@ namespace ConfigManager.Services
         {
             if (label == null || string.IsNullOrEmpty(label))
                 return configItem;
-            
+
             var regex = new Regex(
                 "(Environment:(?<environment>[A-Za-z0-9\\-_]*))|(Application:(?<application>[A-Za-z0-9\\-_]*))|(?<label>[A-Za-z0-9\\-_]+)");
             var matches = regex.Matches(label);
@@ -288,22 +334,32 @@ namespace ConfigManager.Services
                             if (!dryRun)
                                 await _configurationClient.AddConfigurationSettingAsync(configurationSetting);
                         }
-                        else if ((!appConfigItem.KeyVault && appConfigItem.Value != configurationSetting.Value) ||
-                                 appConfigItem.KeyVault && ToKeyVaultReference(keyVaultName, appConfigItem.Value) !=
-                                 configurationSetting.Value)
+                        else if ((!appConfigItem.KeyVault && appConfigItem.Value != configurationSetting.Value)
+                                 || (appConfigItem.KeyVault && ToKeyVaultReference(keyVaultName, appConfigItem.Value) != configurationSetting.Value))
                         {
                             if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.DarkYellow;
                             if (ConsoleOutput)
                                 _console.WriteLine(
                                     $"{dryRunPrefix}Updating Value of AppConfiguration Item '{appConfigItem.Key}'");
 
-
                             configurationSetting.Key = appConfigItem.Key;
                             configurationSetting.Value = appConfigItem.KeyVault
                                 ? ToKeyVaultReference(keyVaultName, appConfigItem.Value)
                                 : appConfigItem.Value;
-                            configurationSetting.ContentType =
-                                appConfigItem.KeyVault ? KeyVaultReferenceContentType : null;
+                            configurationSetting.ContentType = appConfigItem.KeyVault ? KeyVaultReferenceContentType : null;
+                            configurationSetting.Tags.Add(SOURCE_KEY, SOURCE_VALUE);
+
+                            if (!dryRun)
+                                await _configurationClient.SetConfigurationSettingAsync(configurationSetting);
+                        }
+                        else if (!configurationSetting.Tags.ContainsKey(SOURCE_KEY) || configurationSetting.Tags[SOURCE_KEY] != SOURCE_VALUE)
+                        {
+                            if (ConsoleOutput) _console.ForegroundColor = ConsoleColor.DarkYellow;
+                            if (ConsoleOutput)
+                                _console.WriteLine(
+                                    $"{dryRunPrefix}Updating AppConfiguration Item Tags '{appConfigItem.Key}'");
+
+                            configurationSetting.Tags.Add(SOURCE_KEY, SOURCE_VALUE);
 
                             if (!dryRun)
                                 await _configurationClient.SetConfigurationSettingAsync(configurationSetting);
