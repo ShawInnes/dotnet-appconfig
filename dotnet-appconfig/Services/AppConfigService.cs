@@ -347,7 +347,9 @@ namespace ConfigManager.Services
                                 ? ToKeyVaultReference(keyVaultName, appConfigItem.Value)
                                 : appConfigItem.Value;
                             configurationSetting.ContentType = appConfigItem.KeyVault ? KeyVaultReferenceContentType : null;
-                            configurationSetting.Tags.Add(SOURCE_KEY, SOURCE_VALUE);
+
+                            if (!configurationSetting.Tags.ContainsKey(SOURCE_KEY))
+                                configurationSetting.Tags.Add(SOURCE_KEY, SOURCE_VALUE);
 
                             if (!dryRun)
                                 await _configurationClient.SetConfigurationSettingAsync(configurationSetting);
@@ -359,7 +361,8 @@ namespace ConfigManager.Services
                                 _console.WriteLine(
                                     $"{dryRunPrefix}Updating AppConfiguration Item Tags '{appConfigItem.Key}'");
 
-                            configurationSetting.Tags.Add(SOURCE_KEY, SOURCE_VALUE);
+                            if (!configurationSetting.Tags.ContainsKey(SOURCE_KEY))
+                                configurationSetting.Tags.Add(SOURCE_KEY, SOURCE_VALUE);
 
                             if (!dryRun)
                                 await _configurationClient.SetConfigurationSettingAsync(configurationSetting);
